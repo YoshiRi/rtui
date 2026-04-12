@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.screen import Screen
 from textual.widgets import Footer
@@ -15,6 +16,10 @@ class RosEntityInspection(Screen):
     _list_panel: RosEntityListPanel
     _info_panel: RosEntityInfoPanel
     _definition_panel: RosTypeDefinitionPanel | None = None
+
+    BINDINGS = [
+        Binding("/", "focus_search", "Search", show=True),
+    ]
 
     DEFAULT_CSS = """
     .container {
@@ -62,6 +67,9 @@ class RosEntityInspection(Screen):
 
     def force_update(self) -> None:
         self._list_panel.update_items()
+
+    def action_focus_search(self) -> None:
+        self._list_panel.focus_search()
 
     def compose(self) -> ComposeResult:
         yield Footer()
