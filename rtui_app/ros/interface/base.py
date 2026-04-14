@@ -120,3 +120,23 @@ class RosInterface(ABC):
     @abstractmethod
     def list_action_types(self) -> list[str]:
         ...
+
+    # --- Topic monitoring (Hz / Echo) ---
+    # Default implementations return no-op / empty so ROS1 needs no changes.
+
+    def start_topic_monitor(self, topic_name: str) -> bool:
+        return False
+
+    def stop_topic_monitor(self, topic_name: str) -> None:
+        pass
+
+    def get_topic_hz(self, topic_name: str) -> float | None:
+        return None
+
+    def get_topic_echo(self, topic_name: str) -> list[str]:
+        return []
+
+    # --- Node parameters (ROS2 only) ---
+
+    def list_node_params(self, node_name: str) -> dict[str, str] | None:
+        return None

@@ -169,6 +169,25 @@ class RosClient:
     def list_action_types(self) -> list[TreeKey]:
         return list(self.__common_list_types(self.interface.list_action_types()))
 
+    # --- Topic monitoring ---
+
+    def start_topic_monitor(self, topic_name: str) -> bool:
+        return self.interface.start_topic_monitor(topic_name)
+
+    def stop_topic_monitor(self, topic_name: str) -> None:
+        self.interface.stop_topic_monitor(topic_name)
+
+    def get_topic_hz(self, topic_name: str) -> float | None:
+        return self.interface.get_topic_hz(topic_name)
+
+    def get_topic_echo(self, topic_name: str) -> list[str]:
+        return self.interface.get_topic_echo(topic_name)
+
+    # --- Node parameters ---
+
+    def get_node_params(self, node_name: str) -> dict[str, str] | None:
+        return self.interface.list_node_params(node_name)
+
     def list_entities(self, entity_type: RosEntityType) -> list[str]:
         if entity_type == RosEntityType.Node:
             return self.list_nodes()

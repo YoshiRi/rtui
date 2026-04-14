@@ -23,6 +23,8 @@ class InspectApp(App):
         Binding("b", "back", "Prev Page", key_display="b"),
         Binding("f", "forward", "Next Page", key_display="f"),
         Binding("r", "reload", "Reload", key_display="r"),
+        Binding("e", "toggle_echo", "Echo", key_display="e", show=False),
+        Binding("x", "export", "Export", key_display="x"),
         Binding("q", "quit", "Quit", key_display="q"),
     ]
 
@@ -61,6 +63,16 @@ class InspectApp(App):
 
     def action_reload(self) -> None:
         self.screen.force_update()
+
+    def action_toggle_echo(self) -> None:
+        screen = self.screen
+        if hasattr(screen, "action_toggle_echo"):
+            screen.action_toggle_echo()
+
+    def action_export(self) -> None:
+        screen = self.screen
+        if hasattr(screen, "action_export"):
+            screen.action_export()
 
     async def action_quit(self) -> None:
         await super().action_quit()
