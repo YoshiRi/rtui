@@ -183,6 +183,9 @@ class RosClient:
     def get_topic_echo(self, topic_name: str) -> list[str]:
         return self.interface.get_topic_echo(topic_name)
 
+    def set_topic_echo(self, topic_name: str, enabled: bool) -> None:
+        self.interface.set_topic_echo(topic_name, enabled)
+
     # --- Node parameters ---
 
     def get_node_params(self, node_name: str) -> dict[str, str] | None:

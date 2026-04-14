@@ -62,14 +62,28 @@ def _flatten_name_types(
 class _TopicMonitor:
     """rclpy subscription wrapper that tracks Hz and recent messages."""
 
+    # Prevent huge messages (e.g. PointCloud2) from eating RAM.
+    _MAX_MSG_CHARS = 4000
+    # Keep only a handful of echo messages in memory.
+    _MAX_ECHO_MSGS = 5
+
     def __init__(self) -> None:
         self._timestamps: deque[float] = deque(maxlen=100)
-        self._messages: deque[str] = deque(maxlen=20)
+        self._messages: deque[str] = deque(maxlen=self._MAX_ECHO_MSGS)
         self._lock = threading.Lock()
         self.subscription = None
+        # Echo is disabled by default; YAML conversion is skipped when False.
+        self.echo_active: bool = False
 
     def callback(self, msg: t.Any) -> None:
         now = time.time()
+        with self._lock:
+            self._timestamps.append(now)
+
+        # Only pay the cost of serialisation when echo is actually on.
+        if not self.echo_active:
+            return
+
         try:
             from rosidl_runtime_py.convert import message_to_yaml
 
@@ -77,8 +91,12 @@ class _TopicMonitor:
         except Exception:
             msg_str = str(msg)
 
+        # Truncate so that huge binary payloads (PointCloud2, Image, …)
+        # never blow up memory or the TUI renderer.
+        if len(msg_str) > self._MAX_MSG_CHARS:
+            msg_str = msg_str[: self._MAX_MSG_CHARS] + f"\n... (truncated, total {len(msg_str)} chars)"
+
         with self._lock:
-            self._timestamps.append(now)
             self._messages.append(msg_str)
 
     def get_hz(self) -> float | None:
@@ -92,6 +110,17 @@ class _TopicMonitor:
         if window < 1e-6:
             return None
         return (len(recent) - 1) / window
+
+    def set_echo(self, enabled: bool) -> None:
+        """Enable or disable YAML serialisation in callbacks.
+
+        Disabling also clears the message buffer so stale data is not shown
+        when echo is re-enabled later.
+        """
+        with self._lock:
+            self.echo_active = enabled
+            if not enabled:
+                self._messages.clear()
 
     def get_messages(self) -> list[str]:
         """Return recent messages oldest-first."""
@@ -357,6 +386,11 @@ class Ros2(RosInterface):
     def get_topic_echo(self, topic_name: str) -> list[str]:
         monitor = self._monitors.get(topic_name)
         return monitor.get_messages() if monitor else []
+
+    def set_topic_echo(self, topic_name: str, enabled: bool) -> None:
+        monitor = self._monitors.get(topic_name)
+        if monitor:
+            monitor.set_echo(enabled)
 
     # --- Node parameters ---
 

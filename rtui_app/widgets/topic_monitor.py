@@ -46,7 +46,10 @@ class TopicMonitorPanel(Widget):
 
     def set_topic(self, topic_name: str) -> None:
         if self._topic_name and self._topic_name != topic_name:
+            # Disable echo and stop monitoring the old topic before switching.
+            self._ros.set_topic_echo(self._topic_name, False)
             self._ros.stop_topic_monitor(self._topic_name)
+            self._echo_enabled = False
         self._topic_name = topic_name
         self._ros.start_topic_monitor(topic_name)
         try:
@@ -57,6 +60,9 @@ class TopicMonitorPanel(Widget):
 
     def toggle_echo(self) -> None:
         self._echo_enabled = not self._echo_enabled
+        # Propagate to the monitor so the callback skips serialisation when OFF.
+        if self._topic_name:
+            self._ros.set_topic_echo(self._topic_name, self._echo_enabled)
         if not self._echo_enabled:
             try:
                 self.query_one("#echo-log", RichLog).clear()

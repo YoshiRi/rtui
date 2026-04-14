@@ -136,6 +136,9 @@ class RosInterface(ABC):
     def get_topic_echo(self, topic_name: str) -> list[str]:
         return []
 
+    def set_topic_echo(self, topic_name: str, enabled: bool) -> None:
+        pass
+
     # --- Node parameters (ROS2 only) ---
 
     def list_node_params(self, node_name: str) -> dict[str, str] | None:
