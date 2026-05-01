@@ -29,7 +29,7 @@ class RosEntityInspection(Screen):
     _param_panel: NodeParamPanel | None = None
 
     BINDINGS = [
-        Binding("/", "focus_search", "Search", show=True),
+        Binding("ctrl+f", "focus_search", "Search", show=True),
         Binding("e", "toggle_echo", "Echo", show=False),
         Binding("x", "export", "Export", show=True),
     ]
