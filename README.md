@@ -2,64 +2,154 @@
 
 [![PyPI - Version](https://img.shields.io/pypi/v/rtui-app)](https://pypi.org/project/rtui-app/)
 
-rtui is ROS Terminal User Interface
+**rtui** は ROS のトピック・ノード・サービス・アクション・型定義をターミナル上でインタラクティブに操作するための TUI ツールです。  
+`ros2 topic list` や `ros2 node info` を何度も打ち直す手間を削減します。
 
-## Support
+## 対応環境
 
-- Python
-  - 3.8+
-- ROS1
-  - noetic
-- ROS2
-  - humble
-  - ironic
+| | バージョン |
+|---|---|
+| Python | 3.8+ |
+| ROS1 | Noetic |
+| ROS2 | Humble, Ironic |
 
-## Install
+## インストール
 
-> **Note**  
-> Package name is changed because rtui is already used by other package.  
-> If you have already installed rtui, please uninstall it and install rtui-app.
+[pipx](https://github.com/pypa/pipx) 推奨（他の Python 環境を汚染しない）
 
-Via [pipx](https://github.com/pypa/pipx) (Recommended)
-
-```sh-session
-$ pipx install rtui-app
+```sh
+pipx install rtui-app
 ```
 
-Pip
+通常の pip
 
-```sh-session
-$ pip3 install --user rtui-app
+```sh
+pip3 install --user rtui-app
 ```
 
-## Demo
+## デモ
 
 [demo](https://github.com/eduidl/rtui/assets/25898373/901f58a8-98f6-4f23-82d6-404d15d5f35b)
 
-## Usage
+## 起動方法
 
-```
-Usage: rtui [OPTIONS] COMMAND [ARGS]...
-
-  Terminal User Interface for ROS User
-
-Options:
-  --help  Show this message and exit.
-
-Commands:
-  action   Inspect ROS actions
-  node     Inspect ROS nodes (default)
-  service  Inspect ROS services
-  topic    Inspect ROS topics
-  type     Inspect ROS types
+```sh
+rtui              # node 画面で起動（デフォルト）
+rtui node         # ノード一覧
+rtui topic        # トピック一覧
+rtui service      # サービス一覧
+rtui action       # アクション一覧（ROS2 のみ）
+rtui type msg     # メッセージ型一覧
+rtui type srv     # サービス型一覧
+rtui type action  # アクション型一覧（ROS2 のみ）
 ```
 
-- node/topic/service/action/type
-  - get a list of nodes, topics, or etc.
-  - get an information about specific node, topic, or etc.
-  - mouse operation
-    - click link of a node, a topic, or etc.
-  - keyboard operation
-    - `b/f`: Trace history backward and forward
-    - `r`: Once more get list of nodes, topics or etc.
-    - `q`: Terminate app
+## 画面レイアウト
+
+```
+┌──────────────────────┬─────────────────────────────────────────────┐
+│                      │                                             │
+│   エンティティ一覧    │   選択中のエンティティの詳細情報             │
+│   （左ペイン 30%）    │                                             │
+│                      ├─────────────────────────────────────────────┤
+│   /namespace         │   Hz モニタ / パラメータ / 型定義            │
+│     └ /topic_name    │   （下ペイン・エンティティ種別ごとに異なる）   │
+│                      │                                             │
+└──────────────────────┴─────────────────────────────────────────────┘
+ [ / ] Search  [ e ] Echo  [ x ] Export  [ r ] Reload  [ b/f ] History  [ q ] Quit
+```
+
+## キー操作一覧
+
+| キー | 動作 |
+|------|------|
+| `/` または `ctrl+f` | 検索ボックスにフォーカス（リスト絞り込み） |
+| `Enter`（検索中） | ツリーにフォーカスを戻す |
+| `Escape`（検索中） | 検索クリアしてツリーに戻る |
+| `e` | **Topic 画面のみ** Echo の ON/OFF 切替 |
+| `r` | リスト再取得 / ノードパラメータ再読み込み |
+| `b` / `f` | 閲覧履歴を前後に移動 |
+| `x` | 現在の情報を YAML ファイルにエクスポート |
+| `q` | 終了 |
+| マウスクリック | 詳細情報内のリンクで関連エンティティに遷移 |
+
+## 機能詳細
+
+### 検索 / 絞り込み
+
+左ペインの上部に常時表示される検索ボックスに `/` キーでフォーカスします。  
+入力中はトピック / ノード名をリアルタイムで絞り込みます（大文字小文字を区別しない部分一致）。
+
+```
+[ Search... (Enter: tree, Esc: clear) ]
+  /namespace
+    /filtered_topic
+```
+
+### Topic 画面 ― Hz モニタ & Echo（ROS2）
+
+トピックを選択すると、下ペインに Hz モニタが表示されます。
+
+```
+ Hz: 10.23 Hz   Echo: OFF (press e to start)
+────────────────────────────────────────────
+```
+
+`e` キーで Echo を ON にすると、受信した最新メッセージ（最大 5 件）を YAML 形式で表示します。
+
+```
+ Hz: 10.23 Hz   Echo: ON  (press e to stop)
+────────────────────────────────────────────
+────────────────────────────────────────────
+x: 0.012
+y: -0.003
+z: 9.806
+────────────────────────────────────────────
+x: 0.011
+y: -0.002
+...
+```
+
+> **大きいメッセージについて**  
+> PointCloud2 や Image など大容量メッセージは Echo OFF 時には変換処理をスキップします。  
+> Echo ON 時も 4000 文字で打ち切り、メモリ消費を抑えます。
+
+### Node 画面 ― パラメータブラウザ（ROS2）
+
+ノードを選択すると、下ペインにそのノードのパラメータ一覧が表示されます。
+
+```
+ Parameters  (12 entries)  r: reload  x: export
+┌─────────────────────────┬───────────────────┐
+│ Parameter               │ Value             │
+├─────────────────────────┼───────────────────┤
+│ publish_rate            │ 10.0              │
+│ use_sim_time            │ False             │
+│ frame_id                │ base_link         │
+└─────────────────────────┴───────────────────┘
+```
+
+`r` キーで最新値に再読み込みできます。
+
+### エクスポート（`x` キー）
+
+現在選択中のエンティティ情報を YAML ファイルとして **カレントディレクトリ** に保存します。
+
+```sh
+rtui_export_my_node_20240418_153012.yaml
+```
+
+Topic の場合は Hz 値、Echo ON なら直近メッセージも含まれます。  
+Node の場合はパラメータ一覧も含まれます。
+
+## 開発
+
+```sh
+git clone https://github.com/YoshiRi/rtui
+cd rtui
+pip install -e ".[dev]"
+```
+
+## ライセンス
+
+[Apache License 2.0](LICENSE)

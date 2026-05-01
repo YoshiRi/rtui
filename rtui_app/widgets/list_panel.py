@@ -91,16 +91,17 @@ class RosEntityListPanel(Static):
         self._tree.focus()
 
     def on_key(self, event) -> None:
-        if event.key == "escape":
-            try:
-                search_input = self.query_one("#search-input", Input)
-                if search_input.has_focus:
-                    search_input.clear()
-                    self._tree.focus()
-                    event.prevent_default()
-                    event.stop()
-            except Exception:
-                pass
+        search_input = self.query_one("#search-input", Input)
+        if event.key == "slash" and not search_input.has_focus:
+            # '/' when tree has focus → vim-style search activation
+            search_input.focus()
+            event.prevent_default()
+            event.stop()
+        elif event.key == "escape" and search_input.has_focus:
+            search_input.clear()
+            self._tree.focus()
+            event.prevent_default()
+            event.stop()
 
     def on_tree_node_selected(self, e: Tree.NodeSelected[str]) -> None:
         if e.node.is_root or e.node.data is None:

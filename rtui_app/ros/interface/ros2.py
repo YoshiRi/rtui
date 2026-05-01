@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import subprocess
+import threading
+import time
 import typing as t
+from collections import deque
 from pathlib import Path
 from threading import Thread
 from time import sleep
@@ -55,6 +59,87 @@ def _flatten_name_types(
                 yield name, type_
 
 
+class _TopicMonitor:
+    """rclpy subscription wrapper that tracks Hz and recent messages."""
+
+    # Prevent huge messages (e.g. PointCloud2) from eating RAM.
+    _MAX_MSG_CHARS = 4000
+    # Keep only a handful of echo messages in memory.
+    _MAX_ECHO_MSGS = 5
+
+    def __init__(self) -> None:
+        self._timestamps: deque[float] = deque(maxlen=100)
+        self._messages: deque[str] = deque(maxlen=self._MAX_ECHO_MSGS)
+        self._lock = threading.Lock()
+        self.subscription = None
+        # Echo is disabled by default; YAML conversion is skipped when False.
+        self.echo_active: bool = False
+
+    def callback(self, msg: t.Any) -> None:
+        now = time.time()
+        with self._lock:
+            self._timestamps.append(now)
+
+        # Only pay the cost of serialisation when echo is actually on.
+        if not self.echo_active:
+            return
+
+        try:
+            from rosidl_runtime_py.convert import message_to_yaml
+
+            msg_str = message_to_yaml(msg)
+        except Exception:
+            msg_str = str(msg)
+
+        # Truncate so that huge binary payloads (PointCloud2, Image, …)
+        # never blow up memory or the TUI renderer.
+        if len(msg_str) > self._MAX_MSG_CHARS:
+            msg_str = msg_str[: self._MAX_MSG_CHARS] + f"\n... (truncated, total {len(msg_str)} chars)"
+
+        with self._lock:
+            self._messages.append(msg_str)
+
+    def get_hz(self) -> float | None:
+        with self._lock:
+            ts = list(self._timestamps)
+        now = time.time()
+        recent = [t for t in ts if now - t < 5.0]
+        if len(recent) < 2:
+            return None
+        window = recent[-1] - recent[0]
+        if window < 1e-6:
+            return None
+        return (len(recent) - 1) / window
+
+    def set_echo(self, enabled: bool) -> None:
+        """Enable or disable YAML serialisation in callbacks.
+
+        Disabling also clears the message buffer so stale data is not shown
+        when echo is re-enabled later.
+        """
+        with self._lock:
+            self.echo_active = enabled
+            if not enabled:
+                self._messages.clear()
+
+    def get_messages(self) -> list[str]:
+        """Return recent messages oldest-first."""
+        with self._lock:
+            return list(self._messages)
+
+
+def _flatten_params(params: dict, prefix: str = "") -> dict[str, str]:
+    """Recursively flatten nested param dict into dotted-key strings."""
+    result: dict[str, str] = {}
+    for k, v in params.items():
+        full_key = f"{prefix}.{k}" if prefix else k
+        if isinstance(v, dict):
+            result.update(_flatten_params(v, full_key))
+        else:
+            result[full_key] = str(v)
+    return result
+
+
 def _list_types_common(interfaces: dict[str, list[str]]) -> list[str]:
     full_types = []
     for package, type_names in interfaces.items():
@@ -91,9 +176,13 @@ class Ros2(RosInterface):
 
         sleep(0.01)
 
+        self._monitors: dict[str, _TopicMonitor] = {}
+
         super().__init__()
 
     def terminate(self) -> None:
+        for topic_name in list(self._monitors.keys()):
+            self.stop_topic_monitor(topic_name)
         rclpy.shutdown()
         self.thread.join()
 
@@ -261,3 +350,76 @@ class Ros2(RosInterface):
 
     def list_action_types(self) -> list[str]:
         return _list_types_common(get_action_interfaces())
+
+    # --- Topic monitoring ---
+
+    def start_topic_monitor(self, topic_name: str) -> bool:
+        if topic_name in self._monitors:
+            return True
+        try:
+            msg_class = ros2topic.api.get_msg_class(
+                self.node, topic_name, blocking=False, include_hidden_topics=True
+            )
+            if msg_class is None:
+                return False
+            monitor = _TopicMonitor()
+            monitor.subscription = self.node.create_subscription(
+                msg_class, topic_name, monitor.callback, 10
+            )
+            self._monitors[topic_name] = monitor
+            return True
+        except Exception:
+            return False
+
+    def stop_topic_monitor(self, topic_name: str) -> None:
+        monitor = self._monitors.pop(topic_name, None)
+        if monitor and monitor.subscription is not None:
+            try:
+                self.node.destroy_subscription(monitor.subscription)
+            except Exception:
+                pass
+
+    def get_topic_hz(self, topic_name: str) -> float | None:
+        monitor = self._monitors.get(topic_name)
+        return monitor.get_hz() if monitor else None
+
+    def get_topic_echo(self, topic_name: str) -> list[str]:
+        monitor = self._monitors.get(topic_name)
+        return monitor.get_messages() if monitor else []
+
+    def set_topic_echo(self, topic_name: str, enabled: bool) -> None:
+        monitor = self._monitors.get(topic_name)
+        if monitor:
+            monitor.set_echo(enabled)
+
+    # --- Node parameters ---
+
+    def list_node_params(self, node_name: str) -> dict[str, str] | None:
+        try:
+            result = subprocess.run(
+                ["ros2", "param", "dump", node_name],
+                capture_output=True,
+                text=True,
+                timeout=5.0,
+            )
+            if result.returncode != 0:
+                return None
+
+            import yaml
+
+            data = yaml.safe_load(result.stdout)
+            if not isinstance(data, dict):
+                return None
+
+            # Key may be "/node_name" or "node_name"
+            node_key = next(
+                (k for k in data if k == node_name or k == node_name.lstrip("/")),
+                None,
+            )
+            if node_key is None:
+                return {}
+
+            ros_params = data[node_key].get("ros__parameters", {})
+            return dict(sorted(_flatten_params(ros_params).items()))
+        except Exception:
+            return None
