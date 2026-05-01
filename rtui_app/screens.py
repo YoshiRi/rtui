@@ -7,7 +7,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.screen import Screen
-from textual.widgets import Footer
+from textual.widgets import DataTable, Footer, RichLog, Tree
 
 from .ros import RosClient, RosEntity, RosEntityType
 from .widgets import (
@@ -29,9 +29,13 @@ class RosEntityInspection(Screen):
     _param_panel: NodeParamPanel | None = None
 
     BINDINGS = [
-        Binding("ctrl+f", "focus_search", "Search", show=True),
-        Binding("e", "toggle_echo", "Echo", show=False),
-        Binding("x", "export", "Export", show=True),
+        Binding("ctrl+f",    "focus_search",  "Search",  show=True),
+        Binding("ctrl+left", "focus_left",    "◀ List",  show=True),
+        Binding("ctrl+right","focus_info",    "Info ▶",  show=True),
+        Binding("ctrl+down", "focus_bottom",  "▼ Detail",show=False),
+        Binding("ctrl+up",   "focus_info",    "▲ Info",  show=False),
+        Binding("e",         "toggle_echo",   "Echo",    show=False),
+        Binding("x",         "export",        "Export",  show=True),
     ]
 
     DEFAULT_CSS = """
@@ -49,21 +53,34 @@ class RosEntityInspection(Screen):
         border-left: inner $primary;
     }
 
-    #main-upper {
-        border-bottom: inner $primary;
-    }
-
+    /* height classes */
     .main-upper {
         height: 40%;
         border-bottom: inner $primary;
     }
-
     .main-lower {
         height: 60%;
     }
-
     .main-half {
         height: 50%;
+    }
+    .main-half-top {
+        height: 50%;
+        border-bottom: inner $primary;
+    }
+
+    /* focus highlight: active panel gets an accent border */
+    RosEntityListPanel:focus-within {
+        border-right: outer $accent;
+    }
+    #info-scroll:focus-within {
+        border: outer $accent;
+    }
+    #bottom-scroll:focus-within {
+        border: outer $accent;
+    }
+    TopicMonitorPanel:focus-within {
+        border: outer $accent;
     }
     """
 
@@ -99,7 +116,37 @@ class RosEntityInspection(Screen):
             self._param_panel.refresh_params()
 
     # ------------------------------------------------------------------ #
-    # Actions
+    # Panel focus actions
+    # ------------------------------------------------------------------ #
+
+    def action_focus_left(self) -> None:
+        """Focus the entity list tree (left panel)."""
+        try:
+            self._list_panel.query_one(Tree).focus()
+        except Exception:
+            pass
+
+    def action_focus_info(self) -> None:
+        """Focus the info panel (right top) for scrolling."""
+        try:
+            self.query_one("#info-scroll").focus()
+        except Exception:
+            pass
+
+    def action_focus_bottom(self) -> None:
+        """Focus the bottom panel (Hz/Echo, params, or type definition)."""
+        try:
+            if self._monitor_panel is not None:
+                self._monitor_panel.query_one(RichLog).focus()
+            elif self._param_panel is not None:
+                self._param_panel.query_one(DataTable).focus()
+            elif self._definition_panel is not None:
+                self.query_one("#bottom-scroll").focus()
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------ #
+    # Other actions
     # ------------------------------------------------------------------ #
 
     def action_focus_search(self) -> None:
@@ -160,23 +207,23 @@ class RosEntityInspection(Screen):
             yield self._list_panel
             with Vertical(id="main"):
                 if self._monitor_panel is not None:
-                    # Topic: info (40%) + monitor panel (60%)
-                    with ScrollableContainer(classes="main-upper"):
+                    # Topic: info (40%) + Hz/Echo monitor (60%)
+                    with ScrollableContainer(id="info-scroll", classes="main-upper"):
                         yield self._info_panel
                     yield self._monitor_panel
                 elif self._param_panel is not None:
-                    # Node: info (40%) + param panel (60%)
-                    with ScrollableContainer(classes="main-upper"):
+                    # Node: info (40%) + param table (60%)
+                    with ScrollableContainer(id="info-scroll", classes="main-upper"):
                         yield self._info_panel
-                    with ScrollableContainer(classes="main-lower"):
+                    with ScrollableContainer(id="bottom-scroll", classes="main-lower"):
                         yield self._param_panel
                 elif self._definition_panel is not None:
-                    # Type entities: info (50%) + definition (50%)
-                    with ScrollableContainer(id="main-upper", classes="main-half"):
+                    # Type entities: info (50%) + type definition (50%)
+                    with ScrollableContainer(id="info-scroll", classes="main-half-top"):
                         yield self._info_panel
-                    with ScrollableContainer(classes="main-half"):
+                    with ScrollableContainer(id="bottom-scroll", classes="main-half"):
                         yield self._definition_panel
                 else:
-                    # Others (Service, Action): info only
-                    with ScrollableContainer():
+                    # Service / Action: info only
+                    with ScrollableContainer(id="info-scroll"):
                         yield self._info_panel
