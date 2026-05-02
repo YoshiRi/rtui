@@ -96,6 +96,39 @@ class RosEntityInteractivePanel(Static):
             link_idx += 1
 
         self.update("\n".join(lines))
+        self._scroll_to_cursor()
+
+    def _cursor_line(self) -> int:
+        """Return the line offset (0-indexed) of the cursor item in the rendered output."""
+        line = 2  # _HELP + empty line
+        current_section: str | None = None
+        for idx, link in enumerate(self._links):
+            if link.section != current_section:
+                if current_section is not None:
+                    line += 1  # blank line between sections
+                line += 1  # section header
+                current_section = link.section
+            if idx == self._cursor:
+                return line
+            line += 1
+        return line
+
+    def _scroll_to_cursor(self) -> None:
+        container = self.parent
+        if container is None:
+            return
+        try:
+            cursor_line = self._cursor_line()
+            visible_height = container.size.height
+            if visible_height == 0:
+                return
+            scroll_y = int(container.scroll_y)
+            if cursor_line < scroll_y:
+                container.scroll_to(y=cursor_line, animate=False)
+            elif cursor_line >= scroll_y + visible_height - 1:
+                container.scroll_to(y=cursor_line - visible_height + 2, animate=False)
+        except Exception:
+            pass
 
     def on_key(self, event) -> None:
         if event.key == "up":
