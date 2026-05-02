@@ -12,7 +12,6 @@ from textual.widgets import DataTable, Footer, RichLog, Tree
 from .ros import RosClient, RosEntity, RosEntityType
 from .widgets import (
     NodeParamPanel,
-    RosEntityInfoPanel,
     RosEntityInteractivePanel,
     RosEntityListPanel,
     RosTypeDefinitionPanel,
@@ -24,22 +23,19 @@ class RosEntityInspection(Screen):
     _entity_type: RosEntityType
     _entity_name: str | None
     _list_panel: RosEntityListPanel
-    _info_panel: RosEntityInfoPanel
-    _interactive_panel: RosEntityInteractivePanel
-    _info_interactive: bool = False
+    _info_panel: RosEntityInteractivePanel
     _definition_panel: RosTypeDefinitionPanel | None = None
     _monitor_panel: TopicMonitorPanel | None = None
     _param_panel: NodeParamPanel | None = None
 
     BINDINGS = [
-        Binding("ctrl+f",    "focus_search",       "Search",   show=True),
-        Binding("ctrl+left", "focus_left",          "◀ List",   show=True),
-        Binding("ctrl+right","focus_info",          "Info ▶",   show=True),
-        Binding("ctrl+down", "focus_bottom",        "▼ Detail", show=False),
-        Binding("ctrl+up",   "focus_info",          "▲ Info",   show=False),
-        Binding("i",         "toggle_info_mode",    "⌨ Info",   show=True),
-        Binding("e",         "toggle_echo",         "Echo",     show=False),
-        Binding("x",         "export",              "Export",   show=True),
+        Binding("ctrl+f",    "focus_search",  "Search",   show=True),
+        Binding("ctrl+left", "focus_left",    "◀ List",   show=True),
+        Binding("ctrl+right","focus_info",    "Info ▶",   show=True),
+        Binding("ctrl+down", "focus_bottom",  "▼ Detail", show=False),
+        Binding("ctrl+up",   "focus_info",    "▲ Info",   show=False),
+        Binding("e",         "toggle_echo",   "Echo",     show=False),
+        Binding("x",         "export",        "Export",   show=True),
     ]
 
     DEFAULT_CSS = """
@@ -93,8 +89,7 @@ class RosEntityInspection(Screen):
         self._entity_type = entity_type
         self._entity_name = None
         self._list_panel = RosEntityListPanel(ros, entity_type)
-        self._info_panel = RosEntityInfoPanel(ros, None, update_interval=5.0)
-        self._interactive_panel = RosEntityInteractivePanel(ros)
+        self._info_panel = RosEntityInteractivePanel(ros)
 
         if entity_type == RosEntityType.Topic:
             self._monitor_panel = TopicMonitorPanel(ros)
@@ -107,7 +102,6 @@ class RosEntityInspection(Screen):
         self._entity_name = name
         entity = RosEntity(type=self._entity_type, name=name)
         self._info_panel.set_entity(entity)
-        self._interactive_panel.set_entity(entity)
 
         if self._monitor_panel is not None:
             self._monitor_panel.set_topic(name)
@@ -133,12 +127,9 @@ class RosEntityInspection(Screen):
             pass
 
     def action_focus_info(self) -> None:
-        """Focus the info panel (right top) for scrolling."""
+        """Focus the info panel (right top)."""
         try:
-            if self._info_interactive:
-                self._interactive_panel.focus()
-            else:
-                self.query_one("#info-scroll").focus()
+            self._info_panel.focus()
         except Exception:
             pass
 
@@ -157,18 +148,6 @@ class RosEntityInspection(Screen):
     # ------------------------------------------------------------------ #
     # Other actions
     # ------------------------------------------------------------------ #
-
-    def action_toggle_info_mode(self) -> None:
-        self._info_interactive = not self._info_interactive
-        self._info_panel.display = not self._info_interactive
-        self._interactive_panel.display = self._info_interactive
-        if self._info_interactive:
-            self._interactive_panel.focus()
-        else:
-            try:
-                self.query_one("#info-scroll").focus()
-            except Exception:
-                pass
 
     def action_focus_search(self) -> None:
         self._list_panel.focus_search()
@@ -222,11 +201,6 @@ class RosEntityInspection(Screen):
     # Layout
     # ------------------------------------------------------------------ #
 
-    def _yield_info_panels(self) -> ComposeResult:
-        yield self._info_panel
-        self._interactive_panel.display = False
-        yield self._interactive_panel
-
     def compose(self) -> ComposeResult:
         yield Footer()
         with Horizontal(classes="container"):
@@ -235,21 +209,21 @@ class RosEntityInspection(Screen):
                 if self._monitor_panel is not None:
                     # Topic: info (40%) + Hz/Echo monitor (60%)
                     with ScrollableContainer(id="info-scroll", classes="main-upper"):
-                        yield from self._yield_info_panels()
+                        yield self._info_panel
                     yield self._monitor_panel
                 elif self._param_panel is not None:
                     # Node: info (40%) + param table (60%)
                     with ScrollableContainer(id="info-scroll", classes="main-upper"):
-                        yield from self._yield_info_panels()
+                        yield self._info_panel
                     with ScrollableContainer(id="bottom-scroll", classes="main-lower"):
                         yield self._param_panel
                 elif self._definition_panel is not None:
                     # Type entities: info (50%) + type definition (50%)
                     with ScrollableContainer(id="info-scroll", classes="main-half-top"):
-                        yield from self._yield_info_panels()
+                        yield self._info_panel
                     with ScrollableContainer(id="bottom-scroll", classes="main-half"):
                         yield self._definition_panel
                 else:
                     # Service / Action: info only
                     with ScrollableContainer(id="info-scroll"):
-                        yield from self._yield_info_panels()
+                        yield self._info_panel

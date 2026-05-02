@@ -44,7 +44,11 @@ class RosEntityInteractivePanel(Static):
 
     def set_entity(self, entity: RosEntity) -> None:
         self._entity = entity
+        self._cursor = 0
         self._refresh()
+
+    def on_mount(self) -> None:
+        self.set_interval(5.0, self._refresh)
 
     def _refresh(self) -> None:
         if self._entity is None:
