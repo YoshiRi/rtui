@@ -11,6 +11,7 @@ from textual.widgets import DataTable, Footer, RichLog, Tree
 
 from .ros import RosClient, RosEntity, RosEntityType
 from .widgets import (
+    NodeHzPanel,
     NodeParamPanel,
     RosEntityInteractivePanel,
     RosEntityListPanel,
@@ -27,15 +28,18 @@ class RosEntityInspection(Screen):
     _definition_panel: RosTypeDefinitionPanel | None = None
     _monitor_panel: TopicMonitorPanel | None = None
     _param_panel: NodeParamPanel | None = None
+    _hz_panel: NodeHzPanel | None = None
+    _node_bottom_hz: bool = False  # False=params, True=hz
 
     BINDINGS = [
-        Binding("ctrl+f",    "focus_search",  "Search",   show=True),
-        Binding("ctrl+left", "focus_left",    "◀ List",   show=True),
-        Binding("ctrl+right","focus_info",    "Info ▶",   show=True),
-        Binding("ctrl+down", "focus_bottom",  "▼ Detail", show=False),
-        Binding("ctrl+up",   "focus_info",    "▲ Info",   show=False),
-        Binding("e",         "toggle_echo",   "Echo",     show=False),
-        Binding("x",         "export",        "Export",   show=True),
+        Binding("ctrl+f",    "focus_search",       "Search",   show=True),
+        Binding("ctrl+left", "focus_left",          "◀ List",   show=True),
+        Binding("ctrl+right","focus_info",          "Info ▶",   show=True),
+        Binding("ctrl+down", "focus_bottom",        "▼ Detail", show=False),
+        Binding("ctrl+up",   "focus_info",          "▲ Info",   show=False),
+        Binding("h",         "toggle_node_bottom",  "Hz/Param", show=False),
+        Binding("e",         "toggle_echo",         "Echo",     show=False),
+        Binding("x",         "export",              "Export",   show=True),
     ]
 
     DEFAULT_CSS = """
@@ -95,6 +99,7 @@ class RosEntityInspection(Screen):
             self._monitor_panel = TopicMonitorPanel(ros)
         elif entity_type == RosEntityType.Node:
             self._param_panel = NodeParamPanel(ros)
+            self._hz_panel = NodeHzPanel(ros)
         elif entity_type.has_definition():
             self._definition_panel = RosTypeDefinitionPanel(ros)
 
@@ -107,6 +112,8 @@ class RosEntityInspection(Screen):
             self._monitor_panel.set_topic(name)
         if self._param_panel is not None:
             self._param_panel.set_node(name)
+        if self._hz_panel is not None:
+            self._hz_panel.set_node(name)
         if self._definition_panel is not None:
             self._definition_panel.set_entity(entity)
 
@@ -120,26 +127,25 @@ class RosEntityInspection(Screen):
     # ------------------------------------------------------------------ #
 
     def action_focus_left(self) -> None:
-        """Focus the entity list tree (left panel)."""
         try:
             self._list_panel.query_one(Tree).focus()
         except Exception:
             pass
 
     def action_focus_info(self) -> None:
-        """Focus the info panel (right top)."""
         try:
             self._info_panel.focus()
         except Exception:
             pass
 
     def action_focus_bottom(self) -> None:
-        """Focus the bottom panel (Hz/Echo, params, or type definition)."""
         try:
             if self._monitor_panel is not None:
                 self._monitor_panel.query_one(RichLog).focus()
-            elif self._param_panel is not None:
+            elif self._param_panel is not None and not self._node_bottom_hz:
                 self._param_panel.query_one(DataTable).focus()
+            elif self._hz_panel is not None and self._node_bottom_hz:
+                self._hz_panel.query_one(DataTable).focus()
             elif self._definition_panel is not None:
                 self.query_one("#bottom-scroll").focus()
         except Exception:
@@ -148,6 +154,22 @@ class RosEntityInspection(Screen):
     # ------------------------------------------------------------------ #
     # Other actions
     # ------------------------------------------------------------------ #
+
+    def action_toggle_node_bottom(self) -> None:
+        """Toggle Node bottom panel between Params and Hz Overview."""
+        if self._param_panel is None or self._hz_panel is None:
+            return
+        self._node_bottom_hz = not self._node_bottom_hz
+        self._param_panel.display = not self._node_bottom_hz
+        self._hz_panel.display = self._node_bottom_hz
+        # Focus the newly visible panel
+        try:
+            if self._node_bottom_hz:
+                self._hz_panel.query_one(DataTable).focus()
+            else:
+                self._param_panel.query_one(DataTable).focus()
+        except Exception:
+            pass
 
     def action_focus_search(self) -> None:
         self._list_panel.focus_search()
@@ -212,11 +234,13 @@ class RosEntityInspection(Screen):
                         yield self._info_panel
                     yield self._monitor_panel
                 elif self._param_panel is not None:
-                    # Node: info (40%) + param table (60%)
+                    # Node: info (40%) + param table / hz overview (60%)
                     with ScrollableContainer(id="info-scroll", classes="main-upper"):
                         yield self._info_panel
                     with ScrollableContainer(id="bottom-scroll", classes="main-lower"):
                         yield self._param_panel
+                        self._hz_panel.display = False  # type: ignore[union-attr]
+                        yield self._hz_panel
                 elif self._definition_panel is not None:
                     # Type entities: info (50%) + type definition (50%)
                     with ScrollableContainer(id="info-scroll", classes="main-half-top"):
