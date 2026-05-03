@@ -58,6 +58,14 @@ class RosEntity:
         return cls(RosEntityType.ActionType, name)
 
 
+@dataclass(frozen=True)
+class InfoLink:
+    """A navigable link extracted from an entity info panel."""
+    section: str
+    label: str      # display text (Rich-markup-safe)
+    entity: RosEntity
+
+
 @dataclass(frozen=True, order=True)
 class TreeKey:
     name: str
@@ -71,9 +79,18 @@ class TreeKey:
             return f"{self.group}{self.name}"
 
 
+def _link(section: str, name: str, type_: str | None, factory) -> InfoLink:
+    label = name if type_ is None else f"{name} \\[{type_}]"
+    return InfoLink(section=section, label=label, entity=factory(name))
+
+
 class RosEntityInfo(ABC):
     @abstractmethod
     def to_textual(self) -> str:
+        ...
+
+    @abstractmethod
+    def to_link_list(self) -> list[InfoLink]:
         ...
 
 
@@ -156,6 +173,22 @@ class NodeInfo(RosEntityInfo):
 
         return text
 
+    def to_link_list(self) -> list[InfoLink]:
+        links = []
+        for name, type_ in self.publishers:
+            links.append(_link("Publishers", name, type_, RosEntity.new_topic))
+        for name, type_ in self.subscribers:
+            links.append(_link("Subscribers", name, type_, RosEntity.new_topic))
+        for name, type_ in self.service_servers:
+            links.append(_link("Service Servers", name, type_, RosEntity.new_service))
+        for name, type_ in (self.service_clients or []):
+            links.append(_link("Service Clients", name, type_, RosEntity.new_service))
+        for name, type_ in (self.action_servers or []):
+            links.append(_link("Action Servers", name, type_, RosEntity.new_action))
+        for name, type_ in (self.action_clients or []):
+            links.append(_link("Action Clients", name, type_, RosEntity.new_action))
+        return links
+
 
 @dataclass(repr=True)
 class TopicInfo(RosEntityInfo):
@@ -173,6 +206,16 @@ class TopicInfo(RosEntityInfo):
 
 [b]Subscribers:[/b]{_common_entities_with_type(self.subscribers, "node_link", "msg_type_link")}
 """
+
+    def to_link_list(self) -> list[InfoLink]:
+        links = []
+        for t in self.types:
+            links.append(InfoLink("Type", t, RosEntity.new_msg_type(t)))
+        for name, type_ in self.publishers:
+            links.append(_link("Publishers", name, type_, RosEntity.new_node))
+        for name, type_ in self.subscribers:
+            links.append(_link("Subscribers", name, type_, RosEntity.new_node))
+        return links
 
 
 @dataclass(repr=True)
@@ -193,6 +236,14 @@ class ServiceInfo(RosEntityInfo):
 
         return text
 
+    def to_link_list(self) -> list[InfoLink]:
+        links = []
+        for t in self.types:
+            links.append(InfoLink("Type", t, RosEntity.new_srv_type(t)))
+        for name, type_ in (self.servers or []):
+            links.append(_link("Servers", name, type_, RosEntity.new_node))
+        return links
+
 
 # ROS2 only
 @dataclass(repr=True)
@@ -212,6 +263,16 @@ class ActionInfo(RosEntityInfo):
 [b]Action Clients:[/b]{_common_entities_with_type(self.clients, "node_link", "action_type_link")}
 """
 
+    def to_link_list(self) -> list[InfoLink]:
+        links = []
+        for t in self.types:
+            links.append(InfoLink("Type", t, RosEntity.new_action_type(t)))
+        for name, type_ in self.servers:
+            links.append(_link("Action Servers", name, type_, RosEntity.new_node))
+        for name, type_ in self.clients:
+            links.append(_link("Action Clients", name, type_, RosEntity.new_node))
+        return links
+
 
 @dataclass(repr=True)
 class MsgTypeInfo(RosEntityInfo):
@@ -225,6 +286,9 @@ class MsgTypeInfo(RosEntityInfo):
 """
 
         return text
+
+    def to_link_list(self) -> list[InfoLink]:
+        return [InfoLink("Topics", t, RosEntity.new_topic(t)) for t in self.topics]
 
 
 @dataclass(repr=True)
@@ -240,6 +304,9 @@ class SrvTypeInfo(RosEntityInfo):
 
         return text
 
+    def to_link_list(self) -> list[InfoLink]:
+        return [InfoLink("Services", s, RosEntity.new_service(s)) for s in (self.services or [])]
+
 
 # ROS2 only
 @dataclass(repr=True)
@@ -252,3 +319,6 @@ class ActionTypeInfo(RosEntityInfo):
 
 [b]Services:[/b]{_common_entities(self.actions, "action_link")}
 """
+
+    def to_link_list(self) -> list[InfoLink]:
+        return [InfoLink("Actions", a, RosEntity.new_action(a)) for a in self.actions]
