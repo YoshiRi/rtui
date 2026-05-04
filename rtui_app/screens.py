@@ -32,7 +32,6 @@ class RosEntityInspection(Screen):
     _node_bottom_hz: bool = False  # False=params, True=hz
 
     BINDINGS = [
-        Binding("ctrl+f",    "focus_search",       "Search",   show=True),
         Binding("ctrl+left", "focus_left",          "◀ List",   show=True),
         Binding("ctrl+right","focus_info",          "Info ▶",   show=True),
         Binding("ctrl+down", "focus_bottom",        "▼ Detail", show=False),
@@ -134,7 +133,7 @@ class RosEntityInspection(Screen):
 
     def action_focus_info(self) -> None:
         try:
-            self._info_panel.focus()
+            self._info_panel.focus_content()
         except Exception:
             pass
 
@@ -170,9 +169,6 @@ class RosEntityInspection(Screen):
                 self._param_panel.query_one(DataTable).focus()
         except Exception:
             pass
-
-    def action_focus_search(self) -> None:
-        self._list_panel.focus_search()
 
     def action_toggle_echo(self) -> None:
         if self._monitor_panel is not None:

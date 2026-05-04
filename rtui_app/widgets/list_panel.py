@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.widgets import Input, Static, Tree
 
 from ..event import RosEntitySelected
@@ -9,6 +10,10 @@ from ..ros.entity import TreeKey
 
 
 class RosEntityListPanel(Static):
+    BINDINGS = [
+        Binding("ctrl+f", "focus_search", show=False),
+    ]
+
     DEFAULT_CSS = """
     RosEntityListPanel {
         layout: vertical;
@@ -79,6 +84,9 @@ class RosEntityListPanel(Static):
 
     def focus_search(self) -> None:
         self.query_one("#search-input", Input).focus()
+
+    def action_focus_search(self) -> None:
+        self.focus_search()
 
     def compose(self) -> ComposeResult:
         yield Input(placeholder="Search... (Enter: tree, Esc: clear)", id="search-input")

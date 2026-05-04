@@ -1,25 +1,38 @@
 from __future__ import annotations
 
-from textual.widgets import Static
+from textual.app import ComposeResult
+from textual.binding import Binding
+from textual.widget import Widget
+from textual.widgets import Input, Static
 
 from ..event import RosEntitySelected
 from ..ros import RosClient, RosEntity
 from ..ros.entity import InfoLink
 from ..ros.exception import RosMasterException
 
-_HELP = "[dim]↑↓: navigate  Enter: jump  i: exit[/dim]"
+_HELP = "[dim]↑↓: navigate  Enter: jump  Ctrl+F: search[/dim]"
 
 
-class RosEntityInteractivePanel(Static):
-    """Keyboard-navigable version of the info panel.
-
-    Links are displayed as a list; ↑↓ moves the cursor, Enter follows the link.
-    """
-
+class _InfoContent(Static):
+    """Focusable content area inside RosEntityInteractivePanel."""
     can_focus = True
+
+
+class RosEntityInteractivePanel(Widget):
+    """Keyboard-navigable info panel with per-panel Ctrl+F search."""
+
+    BINDINGS = [
+        Binding("ctrl+f", "focus_search", show=False),
+    ]
 
     DEFAULT_CSS = """
     RosEntityInteractivePanel {
+        layout: vertical;
+    }
+    RosEntityInteractivePanel > Input {
+        height: 3;
+    }
+    RosEntityInteractivePanel > #info-content {
         padding: 1 2;
     }
     """
@@ -27,7 +40,9 @@ class RosEntityInteractivePanel(Static):
     _ros: RosClient
     _entity: RosEntity | None = None
     _links: list[InfoLink]
+    _filtered: list[InfoLink]
     _cursor: int = 0
+    _filter_text: str = ""
 
     def __init__(
         self,
@@ -41,76 +56,174 @@ class RosEntityInteractivePanel(Static):
         super().__init__(name=name, id=id, classes=classes, disabled=disabled)
         self._ros = ros
         self._links = []
+        self._filtered = []
 
-    def set_entity(self, entity: RosEntity) -> None:
-        self._entity = entity
-        self._cursor = 0
-        self._refresh()
+    def compose(self) -> ComposeResult:
+        yield Input(
+            placeholder="Search links... (Enter: apply, Esc: clear)",
+            id="info-search",
+        )
+        yield _InfoContent("", id="info-content")
 
     def on_mount(self) -> None:
         self.set_interval(5.0, self._refresh)
 
+    # ------------------------------------------------------------------ #
+    # Public API
+    # ------------------------------------------------------------------ #
+
+    def set_entity(self, entity: RosEntity) -> None:
+        self._entity = entity
+        self._cursor = 0
+        self._filter_text = ""
+        try:
+            self.query_one("#info-search", Input).clear()
+        except Exception:
+            pass
+        self._refresh()
+
+    def focus_content(self) -> None:
+        try:
+            self.query_one("#info-content", _InfoContent).focus()
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------ #
+    # Actions and key handling
+    # ------------------------------------------------------------------ #
+
+    def action_focus_search(self) -> None:
+        try:
+            self.query_one("#info-search", Input).focus()
+        except Exception:
+            pass
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id != "info-search":
+            return
+        self._set_filter(event.value.strip().lower())
+        self._render()
+        self.focus_content()
+
+    def on_key(self, event) -> None:
+        try:
+            search = self.query_one("#info-search", Input)
+            content = self.query_one("#info-content", _InfoContent)
+        except Exception:
+            return
+
+        if search.has_focus:
+            if event.key == "escape":
+                search.clear()
+                self._set_filter("")
+                self._render()
+                content.focus()
+                event.prevent_default()
+                event.stop()
+        elif content.has_focus:
+            if event.key == "up":
+                self._move(-1)
+                event.stop()
+            elif event.key == "down":
+                self._move(1)
+                event.stop()
+            elif event.key == "enter":
+                self._select()
+                event.stop()
+
+    # ------------------------------------------------------------------ #
+    # Data and filtering
+    # ------------------------------------------------------------------ #
+
     def _refresh(self) -> None:
         if self._entity is None:
             self._links = []
-            self._cursor = 0
-            self.update("")
+            self._reapply_filter()
+            self._render()
             return
 
         try:
             info = self._ros.get_entity_info(self._entity)
-            new_links = info.to_link_list()
+            self._links = info.to_link_list()
         except RosMasterException:
-            self.update("[b][red]Fail to communicate to master[/][/]")
+            try:
+                self.query_one("#info-content", _InfoContent).update(
+                    "[b][red]Fail to communicate to master[/][/]"
+                )
+            except Exception:
+                pass
             return
         except Exception as e:
-            self.update(f"[b][red]Error: {e}[/][/]")
+            try:
+                self.query_one("#info-content", _InfoContent).update(
+                    f"[b][red]Error: {e}[/][/]"
+                )
+            except Exception:
+                pass
             return
 
-        # Preserve cursor position when link count changes
-        self._links = new_links
-        if self._cursor >= len(self._links):
-            self._cursor = max(0, len(self._links) - 1)
-
+        self._reapply_filter()
         self._render()
 
+    def _set_filter(self, text: str) -> None:
+        """Set new filter and reset cursor."""
+        self._filter_text = text
+        self._reapply_filter()
+        self._cursor = 0
+
+    def _reapply_filter(self) -> None:
+        """Reapply current filter, preserving cursor position (clamped)."""
+        if not self._filter_text:
+            self._filtered = self._links[:]
+        else:
+            self._filtered = [
+                l for l in self._links if self._filter_text in l.label.lower()
+            ]
+        if self._cursor >= len(self._filtered):
+            self._cursor = max(0, len(self._filtered) - 1)
+
+    # ------------------------------------------------------------------ #
+    # Rendering and scrolling
+    # ------------------------------------------------------------------ #
+
     def _render(self) -> None:
-        if not self._links:
-            entity_label = f"{self._entity.type.name}: {self._entity.name}" if self._entity else ""
-            self.update(f"{entity_label}\n\n{_HELP}\n\n[dim](no navigable links)[/dim]")
+        try:
+            content = self.query_one("#info-content", _InfoContent)
+        except Exception:
             return
 
-        lines: list[str] = []
-        lines.append(_HELP)
-        lines.append("")
+        if not self._filtered:
+            if self._filter_text:
+                msg = f"[dim](no matches for '{self._filter_text}')[/dim]"
+            else:
+                msg = "[dim](no navigable links)[/dim]"
+            content.update(f"{_HELP}\n\n{msg}")
+            return
 
+        lines: list[str] = [_HELP, ""]
         current_section: str | None = None
-        link_idx = 0
-        for link in self._links:
+        for idx, link in enumerate(self._filtered):
             if link.section != current_section:
                 if current_section is not None:
                     lines.append("")
                 lines.append(f"[b]{link.section}:[/b]")
                 current_section = link.section
-
-            if link_idx == self._cursor:
+            if idx == self._cursor:
                 lines.append(f"  [reverse] > {link.label} [/reverse]")
             else:
                 lines.append(f"     {link.label}")
-            link_idx += 1
 
-        self.update("\n".join(lines))
+        content.update("\n".join(lines))
         self._scroll_to_cursor()
 
     def _cursor_line(self) -> int:
-        """Return the line offset (0-indexed) of the cursor item in the rendered output."""
-        line = 2  # _HELP + empty line
+        line = 2  # _HELP + blank line
         current_section: str | None = None
-        for idx, link in enumerate(self._links):
+        for idx, link in enumerate(self._filtered):
             if link.section != current_section:
                 if current_section is not None:
-                    line += 1  # blank line between sections
-                line += 1  # section header
+                    line += 1
+                line += 1
                 current_section = link.section
             if idx == self._cursor:
                 return line
@@ -123,36 +236,31 @@ class RosEntityInteractivePanel(Static):
             return
         try:
             cursor_line = self._cursor_line()
+            # Add Input height (3 rows) since content starts below it
+            absolute_line = cursor_line + 3
             visible_height = container.size.height
             if visible_height == 0:
                 return
             scroll_y = int(container.scroll_y)
-            if cursor_line < scroll_y:
-                container.scroll_to(y=cursor_line, animate=False)
-            elif cursor_line >= scroll_y + visible_height - 1:
-                container.scroll_to(y=cursor_line - visible_height + 2, animate=False)
+            if absolute_line < scroll_y:
+                container.scroll_to(y=absolute_line, animate=False)
+            elif absolute_line >= scroll_y + visible_height - 1:
+                container.scroll_to(y=max(0, absolute_line - visible_height + 2), animate=False)
         except Exception:
             pass
 
-    def on_key(self, event) -> None:
-        if event.key == "up":
-            self._move(-1)
-            event.stop()
-        elif event.key == "down":
-            self._move(1)
-            event.stop()
-        elif event.key == "enter":
-            self._select()
-            event.stop()
+    # ------------------------------------------------------------------ #
+    # Navigation
+    # ------------------------------------------------------------------ #
 
     def _move(self, delta: int) -> None:
-        if not self._links:
+        if not self._filtered:
             return
-        self._cursor = (self._cursor + delta) % len(self._links)
+        self._cursor = (self._cursor + delta) % len(self._filtered)
         self._render()
 
     def _select(self) -> None:
-        if not self._links or self._cursor >= len(self._links):
+        if not self._filtered or self._cursor >= len(self._filtered):
             return
-        entity = self._links[self._cursor].entity
+        entity = self._filtered[self._cursor].entity
         self.post_message(RosEntitySelected(entity.type, entity.name))
