@@ -10,7 +10,7 @@ from ..ros import RosClient, RosEntity
 from ..ros.entity import InfoLink
 from ..ros.exception import RosMasterException
 
-_HELP = "[dim]↑↓: navigate  Enter: jump  Ctrl+F: search[/dim]"
+_HELP = "[dim]↑↓: navigate  Enter: jump[/dim]"
 
 
 class _InfoContent(Static):
@@ -22,7 +22,8 @@ class RosEntityInteractivePanel(Widget):
     """Keyboard-navigable info panel with per-panel Ctrl+F search."""
 
     BINDINGS = [
-        Binding("ctrl+f", "focus_search", show=False),
+        Binding("ctrl+f",  "focus_search", "Search", show=True),
+        Binding("escape",  "clear_search", "Clear",  show=True),
     ]
 
     DEFAULT_CSS = """
@@ -100,6 +101,25 @@ class RosEntityInteractivePanel(Widget):
         except Exception:
             pass
 
+    def action_clear_search(self) -> None:
+        try:
+            search = self.query_one("#info-search", Input)
+            if search.has_focus:
+                search.clear()
+                self._set_filter("")
+                self._render()
+                self.focus_content()
+        except Exception:
+            pass
+
+    def check_action(self, action: str, parameters: tuple) -> bool | None:
+        if action == "clear_search":
+            try:
+                return self.query_one("#info-search", Input).has_focus
+            except Exception:
+                return False
+        return None
+
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input.id != "info-search":
             return
@@ -109,20 +129,11 @@ class RosEntityInteractivePanel(Widget):
 
     def on_key(self, event) -> None:
         try:
-            search = self.query_one("#info-search", Input)
             content = self.query_one("#info-content", _InfoContent)
         except Exception:
             return
 
-        if search.has_focus:
-            if event.key == "escape":
-                search.clear()
-                self._set_filter("")
-                self._render()
-                content.focus()
-                event.prevent_default()
-                event.stop()
-        elif content.has_focus:
+        if content.has_focus:
             if event.key == "up":
                 self._move(-1)
                 event.stop()

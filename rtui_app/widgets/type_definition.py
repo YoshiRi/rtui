@@ -13,7 +13,8 @@ from ..ros import RosClient, RosEntity
 
 class RosTypeDefinitionPanel(Widget):
     BINDINGS = [
-        Binding("ctrl+f", "focus_search", show=False),
+        Binding("ctrl+f",  "focus_search", "Search", show=True),
+        Binding("escape",  "clear_search", "Clear",  show=True),
     ]
 
     DEFAULT_CSS = """
@@ -73,28 +74,33 @@ class RosTypeDefinitionPanel(Widget):
         except Exception:
             pass
 
+    def action_clear_search(self) -> None:
+        try:
+            search = self.query_one("#typedef-search", Input)
+            if search.has_focus:
+                search.clear()
+                self._search_text = ""
+                self._redraw()
+                if self.parent:
+                    self.parent.focus()
+        except Exception:
+            pass
+
+    def check_action(self, action: str, parameters: tuple) -> bool | None:
+        if action == "clear_search":
+            try:
+                return self.query_one("#typedef-search", Input).has_focus
+            except Exception:
+                return False
+        return None
+
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input.id != "typedef-search":
             return
         self._search_text = event.value.strip().lower()
         self._redraw()
-        # Return focus to parent ScrollableContainer for scrolling
         if self.parent:
             self.parent.focus()
-
-    def on_key(self, event) -> None:
-        try:
-            search = self.query_one("#typedef-search", Input)
-        except Exception:
-            return
-        if search.has_focus and event.key == "escape":
-            search.clear()
-            self._search_text = ""
-            self._redraw()
-            if self.parent:
-                self.parent.focus()
-            event.prevent_default()
-            event.stop()
 
     # ------------------------------------------------------------------ #
     # Content

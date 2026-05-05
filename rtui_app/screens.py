@@ -32,8 +32,8 @@ class RosEntityInspection(Screen):
     _node_bottom_hz: bool = False  # False=params, True=hz
 
     BINDINGS = [
-        Binding("ctrl+left", "focus_left",          "◀ List",   show=True),
-        Binding("ctrl+right","focus_info",          "Info ▶",   show=True),
+        Binding("ctrl+left", "focus_left",          "◀ List",   show=False),
+        Binding("ctrl+right","focus_info",          "Info ▶",   show=False),
         Binding("ctrl+down", "focus_bottom",        "▼ Detail", show=False),
         Binding("ctrl+up",   "focus_info",          "▲ Info",   show=False),
         Binding("h",         "toggle_node_bottom",  "Hz/Param", show=False),

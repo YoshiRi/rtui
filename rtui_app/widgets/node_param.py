@@ -12,7 +12,8 @@ class NodeParamPanel(Widget):
     """Shows ROS2 parameters for a selected node in a DataTable."""
 
     BINDINGS = [
-        Binding("ctrl+f", "focus_search", show=False),
+        Binding("ctrl+f",  "focus_search", "Search", show=True),
+        Binding("escape",  "clear_search", "Clear",  show=True),
     ]
 
     DEFAULT_CSS = """
@@ -57,6 +58,25 @@ class NodeParamPanel(Widget):
         except Exception:
             pass
 
+    def action_clear_search(self) -> None:
+        try:
+            search = self.query_one("#param-search", Input)
+            if search.has_focus:
+                search.clear()
+                self._search_text = ""
+                self._redraw()
+                self.query_one("#param-table", DataTable).focus()
+        except Exception:
+            pass
+
+    def check_action(self, action: str, parameters: tuple) -> bool | None:
+        if action == "clear_search":
+            try:
+                return self.query_one("#param-search", Input).has_focus
+            except Exception:
+                return False
+        return None
+
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input.id != "param-search":
             return
@@ -66,22 +86,6 @@ class NodeParamPanel(Widget):
             self.query_one("#param-table", DataTable).focus()
         except Exception:
             pass
-
-    def on_key(self, event) -> None:
-        try:
-            search = self.query_one("#param-search", Input)
-        except Exception:
-            return
-        if search.has_focus and event.key == "escape":
-            search.clear()
-            self._search_text = ""
-            self._redraw()
-            try:
-                self.query_one("#param-table", DataTable).focus()
-            except Exception:
-                pass
-            event.prevent_default()
-            event.stop()
 
     def set_node(self, node_name: str) -> None:
         self._node_name = node_name
