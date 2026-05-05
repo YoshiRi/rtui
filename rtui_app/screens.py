@@ -121,6 +121,9 @@ class RosEntityInspection(Screen):
         if self._param_panel is not None and self._entity_name is not None:
             self._param_panel.refresh_params()
 
+    def on_mount(self) -> None:
+        self.action_focus_left()
+
     # ------------------------------------------------------------------ #
     # Panel focus actions
     # ------------------------------------------------------------------ #
