@@ -7,6 +7,8 @@ from textual.binding import Binding
 from textual.widget import Widget
 from textual.widgets import DataTable, Input, Static
 
+from ._search_input import SearchInput
+
 from ..ros import RosClient
 
 
@@ -39,7 +41,7 @@ class NodeHzPanel(Widget):
     NodeHzPanel {
         layout: vertical;
     }
-    NodeHzPanel > Input {
+    NodeHzPanel > SearchInput {
         height: 3;
     }
     NodeHzPanel > #hz-status {
@@ -65,7 +67,7 @@ class NodeHzPanel(Widget):
         self._filter = _Filter.SUB
 
     def compose(self) -> ComposeResult:
-        yield Input(placeholder="Search topics... (Enter: apply, Esc: clear)", id="hz-search")
+        yield SearchInput(placeholder="Search topics... (Enter: apply, Esc: clear)", id="hz-search")
         yield Static(" Hz Overview", id="hz-status")
         table: DataTable = DataTable(id="hz-table")
         table.add_columns("Dir", "Topic", "Type", "Hz")

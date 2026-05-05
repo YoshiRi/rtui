@@ -5,6 +5,8 @@ from textual.binding import Binding
 from textual.widget import Widget
 from textual.widgets import Input, Static
 
+from ._search_input import SearchInput
+
 from ..event import RosEntitySelected
 from ..ros import RosClient, RosEntity
 from ..ros.entity import InfoLink
@@ -31,7 +33,7 @@ class RosEntityInteractivePanel(Widget):
         layout: vertical;
         height: auto;
     }
-    RosEntityInteractivePanel > Input {
+    RosEntityInteractivePanel > SearchInput {
         height: 3;
     }
     RosEntityInteractivePanel > #info-content {
@@ -62,7 +64,7 @@ class RosEntityInteractivePanel(Widget):
         self._filtered = []
 
     def compose(self) -> ComposeResult:
-        yield Input(
+        yield SearchInput(
             placeholder="Search links... (Enter: apply, Esc: clear)",
             id="info-search",
         )
