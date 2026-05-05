@@ -32,9 +32,8 @@ class RosEntityInspection(Screen):
     _node_bottom_hz: bool = False  # False=params, True=hz
 
     BINDINGS = [
-        Binding("ctrl+f",    "focus_search",       "Search",   show=True),
-        Binding("ctrl+left", "focus_left",          "◀ List",   show=True),
-        Binding("ctrl+right","focus_info",          "Info ▶",   show=True),
+        Binding("ctrl+left", "focus_left",          "◀ List",   show=False),
+        Binding("ctrl+right","focus_info",          "Info ▶",   show=False),
         Binding("ctrl+down", "focus_bottom",        "▼ Detail", show=False),
         Binding("ctrl+up",   "focus_info",          "▲ Info",   show=False),
         Binding("h",         "toggle_node_bottom",  "Hz/Param", show=False),
@@ -122,6 +121,9 @@ class RosEntityInspection(Screen):
         if self._param_panel is not None and self._entity_name is not None:
             self._param_panel.refresh_params()
 
+    def on_mount(self) -> None:
+        self.action_focus_left()
+
     # ------------------------------------------------------------------ #
     # Panel focus actions
     # ------------------------------------------------------------------ #
@@ -134,7 +136,7 @@ class RosEntityInspection(Screen):
 
     def action_focus_info(self) -> None:
         try:
-            self._info_panel.focus()
+            self._info_panel.focus_content()
         except Exception:
             pass
 
@@ -170,9 +172,6 @@ class RosEntityInspection(Screen):
                 self._param_panel.query_one(DataTable).focus()
         except Exception:
             pass
-
-    def action_focus_search(self) -> None:
-        self._list_panel.focus_search()
 
     def action_toggle_echo(self) -> None:
         if self._monitor_panel is not None:

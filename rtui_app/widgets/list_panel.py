@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.widgets import Input, Static, Tree
 
 from ..event import RosEntitySelected
@@ -9,6 +10,11 @@ from ..ros.entity import TreeKey
 
 
 class RosEntityListPanel(Static):
+    BINDINGS = [
+        Binding("ctrl+f",  "focus_search", "Search", show=True),
+        Binding("escape",  "clear_search", "Clear",  show=True),
+    ]
+
     DEFAULT_CSS = """
     RosEntityListPanel {
         layout: vertical;
@@ -80,6 +86,27 @@ class RosEntityListPanel(Static):
     def focus_search(self) -> None:
         self.query_one("#search-input", Input).focus()
 
+    def action_focus_search(self) -> None:
+        self.focus_search()
+
+    def action_clear_search(self) -> None:
+        try:
+            search = self.query_one("#search-input", Input)
+            if search.has_focus:
+                search.clear()
+                self._render_tree()
+                self._tree.focus()
+        except Exception:
+            pass
+
+    def check_action(self, action: str, parameters: tuple) -> bool | None:
+        if action == "clear_search":
+            try:
+                return self.query_one("#search-input", Input).has_focus
+            except Exception:
+                return False
+        return None
+
     def compose(self) -> ComposeResult:
         yield Input(placeholder="Search... (Enter: tree, Esc: clear)", id="search-input")
         yield self._tree
@@ -93,13 +120,7 @@ class RosEntityListPanel(Static):
     def on_key(self, event) -> None:
         search_input = self.query_one("#search-input", Input)
         if event.key == "slash" and not search_input.has_focus:
-            # '/' when tree has focus → vim-style search activation
             search_input.focus()
-            event.prevent_default()
-            event.stop()
-        elif event.key == "escape" and search_input.has_focus:
-            search_input.clear()
-            self._tree.focus()
             event.prevent_default()
             event.stop()
 
