@@ -28,11 +28,13 @@ class RosEntityInteractivePanel(Widget):
     DEFAULT_CSS = """
     RosEntityInteractivePanel {
         layout: vertical;
+        height: auto;
     }
     RosEntityInteractivePanel > Input {
         height: 3;
     }
     RosEntityInteractivePanel > #info-content {
+        height: auto;
         padding: 1 2;
     }
     """

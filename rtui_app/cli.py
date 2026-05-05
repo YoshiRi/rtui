@@ -1,3 +1,5 @@
+import os
+import sys
 from os import environ
 
 import click
@@ -11,12 +13,26 @@ def is_ros2() -> bool:
 
 
 def inspect_common(target: RosEntityType) -> None:
-    ros = RosClient()
+    # Redirect OS-level stderr (fd 2) to a log file so that ROS2 rcutils
+    # C-layer log messages don't corrupt the Textual TUI display.
+    log_path = os.path.join(environ.get("TMPDIR", "/tmp"), "rtui.log")
+    saved_fd2 = os.dup(2)
+    log_fd = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+    os.dup2(log_fd, 2)
+    os.close(log_fd)
+    saved_stderr = sys.stderr
+    sys.stderr = open(log_path, "a", buffering=1)
+
     try:
+        ros = RosClient()
         app = InspectApp(ros=ros, init_target=target)
         app.run()
     finally:
         ros.terminate()
+        sys.stderr.close()
+        sys.stderr = saved_stderr
+        os.dup2(saved_fd2, 2)
+        os.close(saved_fd2)
 
 
 @click.command(help="Inspect ROS nodes (default)")

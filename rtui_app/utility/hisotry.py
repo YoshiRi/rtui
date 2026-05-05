@@ -9,7 +9,7 @@ T = TypeVar("T")
 
 @dataclass
 class History(Generic[T]):
-    history: deque[T] = deque(maxlen=20)
+    history: deque[T] = None  # type: ignore[assignment]
     index: int = -1
 
     def __init__(self, maxlen: int) -> None:
