@@ -125,13 +125,13 @@ class Ros1(RosInterface):
         topic_type = _search_topic_type(topic_types, topic_name)
         return [topic_type] if topic_type else []
 
-    def get_topic_publishers(self, topic_name: str) -> list[tuple[str, str | None]]:
+    def get_topic_publishers(self, topic_name: str) -> list[tuple[str, str | None, str | None]]:
         pubs, _, _ = self.__get_system_state()
-        return list(_search_nodes(pubs, topic_name))
+        return [(n, t, None) for n, t in _search_nodes(pubs, topic_name)]
 
-    def get_topic_subscribers(self, topic_name: str) -> list[tuple[str, str | None]]:
+    def get_topic_subscribers(self, topic_name: str) -> list[tuple[str, str | None, str | None]]:
         _, subs, _ = self.__get_system_state()
-        return list(_search_nodes(subs, topic_name))
+        return [(n, t, None) for n, t in _search_nodes(subs, topic_name)]
 
     def get_service_types(self, service_name: str) -> list[str]:
         type = self.__get_service_type(service_name)

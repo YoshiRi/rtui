@@ -38,6 +38,18 @@ def _get_full_path(namespace: str, name: str) -> str:
         return f"{namespace}/{name}"
 
 
+def _reliability(qos) -> str | None:
+    try:
+        name = qos.reliability.name
+        if name == "RELIABLE":
+            return "REL"
+        if name == "BEST_EFFORT":
+            return "BE"
+    except Exception:
+        pass
+    return None
+
+
 def _flatten_node_info(
     entities: list[tuple[t.Any]],
 ) -> t.Generator[tuple[str, str | None]]:
@@ -256,20 +268,19 @@ class Ros2(RosInterface):
 
         return []
 
-    def get_topic_publishers(self, topic_name: str) -> list[tuple[str, str]]:
+    def get_topic_publishers(self, topic_name: str) -> list[tuple[str, str, str | None]]:
         pubs = self.node.get_publishers_info_by_topic(topic_name)
-        return list(
-            (_get_full_path(comm.node_namespace, comm.node_name), comm.topic_type)
+        return [
+            (_get_full_path(comm.node_namespace, comm.node_name), comm.topic_type, _reliability(comm.qos_profile))
             for comm in pubs
-        )
+        ]
 
-    def get_topic_subscribers(self, topic_name: str) -> list[tuple[str, str]]:
+    def get_topic_subscribers(self, topic_name: str) -> list[tuple[str, str, str | None]]:
         subs = self.node.get_subscriptions_info_by_topic(topic_name)
-
-        return list(
-            (_get_full_path(comm.node_namespace, comm.node_name), comm.topic_type)
+        return [
+            (_get_full_path(comm.node_namespace, comm.node_name), comm.topic_type, _reliability(comm.qos_profile))
             for comm in subs
-        )
+        ]
 
     def get_service_types(self, service_name: str) -> list[str]:
         names_and_types = ros2service.api.get_service_names_and_types(

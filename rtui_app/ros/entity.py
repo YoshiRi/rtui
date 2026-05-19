@@ -79,9 +79,29 @@ class TreeKey:
             return f"{self.group}{self.name}"
 
 
-def _link(section: str, name: str, type_: str | None, factory) -> InfoLink:
+def _link(section: str, name: str, type_: str | None, factory, qos: str | None = None) -> InfoLink:
     label = name if type_ is None else f"{name} \\[{type_}]"
+    if qos is not None:
+        label = f"{label} {qos}"
     return InfoLink(section=section, label=label, entity=factory(name))
+
+
+def _topic_endpoints_text(
+    entities: list[tuple[str, str | None, str | None]], callback: str, type_callback: str
+) -> str:
+    """Like _common_entities_with_type but with optional QoS reliability suffix."""
+    if not entities:
+        return " None"
+    out = ""
+    for i, (name, type_, qos) in enumerate(entities):
+        if i > 0 and i % 5 == 0:
+            out += "\n"
+        out += f"\n  {_common_link(name, callback)}"
+        if type_ is not None:
+            out += f" \\[{_common_link(type_, type_callback)}]"
+        if qos is not None:
+            out += f" [dim]{qos}[/dim]"
+    return out
 
 
 class RosEntityInfo(ABC):
@@ -194,27 +214,27 @@ class NodeInfo(RosEntityInfo):
 class TopicInfo(RosEntityInfo):
     name: str
     types: list[str] = field(default_factory=list)
-    publishers: list[tuple[str, str | None]] = field(default_factory=list)
-    subscribers: list[tuple[str, str | None]] = field(default_factory=list)
+    publishers: list[tuple[str, str | None, str | None]] = field(default_factory=list)
+    subscribers: list[tuple[str, str | None, str | None]] = field(default_factory=list)
 
     def to_textual(self) -> str:
         return f"""[b]Topic:[/b] {self.name}
 
 [b]Type:[/b] {_common_types(self.types, "msg_type_link")}
 
-[b]Publishers:[/b]{_common_entities_with_type(self.publishers, "node_link", "msg_type_link")}
+[b]Publishers:[/b]{_topic_endpoints_text(self.publishers, "node_link", "msg_type_link")}
 
-[b]Subscribers:[/b]{_common_entities_with_type(self.subscribers, "node_link", "msg_type_link")}
+[b]Subscribers:[/b]{_topic_endpoints_text(self.subscribers, "node_link", "msg_type_link")}
 """
 
     def to_link_list(self) -> list[InfoLink]:
         links = []
         for t in self.types:
             links.append(InfoLink("Type", t, RosEntity.new_msg_type(t)))
-        for name, type_ in self.publishers:
-            links.append(_link("Publishers", name, type_, RosEntity.new_node))
-        for name, type_ in self.subscribers:
-            links.append(_link("Subscribers", name, type_, RosEntity.new_node))
+        for name, type_, qos in self.publishers:
+            links.append(_link("Publishers", name, type_, RosEntity.new_node, qos))
+        for name, type_, qos in self.subscribers:
+            links.append(_link("Subscribers", name, type_, RosEntity.new_node, qos))
         return links
 
 
