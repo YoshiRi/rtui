@@ -5,6 +5,8 @@ from textual.binding import Binding
 from textual.widget import Widget
 from textual.widgets import DataTable, Input, Static
 
+from ._search_input import SearchInput
+
 from ..ros import RosClient
 
 
@@ -20,7 +22,7 @@ class NodeParamPanel(Widget):
     NodeParamPanel {
         layout: vertical;
     }
-    NodeParamPanel > Input {
+    NodeParamPanel > SearchInput {
         height: 3;
     }
     NodeParamPanel > #param-status {
@@ -45,7 +47,7 @@ class NodeParamPanel(Widget):
         self._all_params = {}
 
     def compose(self) -> ComposeResult:
-        yield Input(placeholder="Search params... (Enter: apply, Esc: clear)", id="param-search")
+        yield SearchInput(placeholder="Search params... (Enter: apply, Esc: clear)", id="param-search")
         yield Static(" Parameters", id="param-status")
         table: DataTable = DataTable(id="param-table")
         table.add_columns("Parameter", "Value")

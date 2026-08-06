@@ -8,6 +8,8 @@ from textual.binding import Binding
 from textual.widget import Widget
 from textual.widgets import Input, Static
 
+from ._search_input import SearchInput
+
 from ..ros import RosClient, RosEntity
 
 
@@ -21,7 +23,7 @@ class RosTypeDefinitionPanel(Widget):
     RosTypeDefinitionPanel {
         layout: vertical;
     }
-    RosTypeDefinitionPanel > Input {
+    RosTypeDefinitionPanel > SearchInput {
         height: 3;
     }
     RosTypeDefinitionPanel > #typedef-status {
@@ -54,7 +56,7 @@ class RosTypeDefinitionPanel(Widget):
         self._entity = entity
 
     def compose(self) -> ComposeResult:
-        yield Input(
+        yield SearchInput(
             placeholder="Search... (Enter: highlight, Esc: clear)",
             id="typedef-search",
         )

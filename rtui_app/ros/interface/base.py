@@ -54,11 +54,11 @@ class RosInterface(ABC):
         ...
 
     @abstractmethod
-    def get_topic_publishers(self, topic_name: str) -> list[tuple[str, str | None]]:
+    def get_topic_publishers(self, topic_name: str) -> list[tuple[str, str | None, str | None]]:
         ...
 
     @abstractmethod
-    def get_topic_subscribers(self, topic_name: str) -> list[tuple[str, str | None]]:
+    def get_topic_subscribers(self, topic_name: str) -> list[tuple[str, str | None, str | None]]:
         ...
 
     @abstractmethod

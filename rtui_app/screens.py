@@ -32,10 +32,10 @@ class RosEntityInspection(Screen):
     _node_bottom_hz: bool = False  # False=params, True=hz
 
     BINDINGS = [
-        Binding("ctrl+left", "focus_left",          "◀ List",   show=False),
-        Binding("ctrl+right","focus_info",          "Info ▶",   show=False),
-        Binding("ctrl+down", "focus_bottom",        "▼ Detail", show=False),
-        Binding("ctrl+up",   "focus_info",          "▲ Info",   show=False),
+        Binding("ctrl+left", "focus_prev",   "◀ Panel",  show=True),
+        Binding("ctrl+right","focus_next",   "Panel ▶",  show=True),
+        Binding("ctrl+down", "focus_bottom", "▼ Detail", show=False),
+        Binding("ctrl+up",   "focus_info",   "▲ Info",   show=False),
         Binding("h",         "toggle_node_bottom",  "Hz/Param", show=False),
         Binding("e",         "toggle_echo",         "Echo",     show=False),
         Binding("x",         "export",              "Export",   show=True),
@@ -127,6 +127,55 @@ class RosEntityInspection(Screen):
     # ------------------------------------------------------------------ #
     # Panel focus actions
     # ------------------------------------------------------------------ #
+
+    def _current_panel(self) -> str:
+        """Return which top-level panel has focus: 'list', 'info', or 'bottom'."""
+        node = self.focused
+        while node is not None:
+            if node is self._list_panel:
+                return "list"
+            if node is self._info_panel:
+                return "info"
+            for bottom in (
+                self._monitor_panel,
+                self._param_panel,
+                self._hz_panel,
+                self._definition_panel,
+            ):
+                if bottom is not None and node is bottom:
+                    return "bottom"
+            node = node.parent
+        return "list"
+
+    def _has_bottom(self) -> bool:
+        return any(
+            p is not None
+            for p in (self._monitor_panel, self._param_panel, self._definition_panel)
+        )
+
+    def action_focus_prev(self) -> None:
+        panel = self._current_panel()
+        if panel == "list":
+            if self._has_bottom():
+                self.action_focus_bottom()
+            else:
+                self.action_focus_info()
+        elif panel == "info":
+            self.action_focus_left()
+        else:
+            self.action_focus_info()
+
+    def action_focus_next(self) -> None:
+        panel = self._current_panel()
+        if panel == "list":
+            self.action_focus_info()
+        elif panel == "info":
+            if self._has_bottom():
+                self.action_focus_bottom()
+            else:
+                self.action_focus_left()
+        else:
+            self.action_focus_left()
 
     def action_focus_left(self) -> None:
         try:

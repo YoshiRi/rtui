@@ -7,6 +7,7 @@ from textual.widgets import Input, Static, Tree
 from ..event import RosEntitySelected
 from ..ros import RosClient, RosEntityType
 from ..ros.entity import TreeKey
+from ._search_input import SearchInput
 
 
 class RosEntityListPanel(Static):
@@ -19,7 +20,7 @@ class RosEntityListPanel(Static):
     RosEntityListPanel {
         layout: vertical;
     }
-    RosEntityListPanel > Input {
+    RosEntityListPanel > SearchInput {
         height: 3;
     }
     RosEntityListPanel > Tree {
@@ -108,7 +109,7 @@ class RosEntityListPanel(Static):
         return None
 
     def compose(self) -> ComposeResult:
-        yield Input(placeholder="Search... (Enter: tree, Esc: clear)", id="search-input")
+        yield SearchInput(placeholder="Search... (Enter: tree, Esc: clear)", id="search-input")
         yield self._tree
 
     def on_input_changed(self, event: Input.Changed) -> None:
