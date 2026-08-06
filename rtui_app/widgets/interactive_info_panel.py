@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import subprocess
+
 from textual.app import ComposeResult
 from textual.binding import Binding
+from textual.events import Click
 from textual.widget import Widget
 from textual.widgets import Input, Static
 
@@ -12,12 +15,17 @@ from ..ros import RosClient, RosEntity
 from ..ros.entity import InfoLink
 from ..ros.exception import RosMasterException
 
-_HELP = "[dim]↑↓: navigate  Enter: jump[/dim]"
+_HELP = "[dim]↑↓: navigate  Enter: jump  Right-click: copy[/dim]"
 
 
 class _InfoContent(Static):
     """Focusable content area inside RosEntityInteractivePanel."""
     can_focus = True
+
+    def on_click(self, event: Click) -> None:
+        parent = self.parent
+        if isinstance(parent, RosEntityInteractivePanel):
+            parent._on_content_click(event)
 
 
 class RosEntityInteractivePanel(Widget):
@@ -279,3 +287,60 @@ class RosEntityInteractivePanel(Widget):
             return
         entity = self._filtered[self._cursor].entity
         self.post_message(RosEntitySelected(entity.type, entity.name))
+
+    # ------------------------------------------------------------------ #
+    # Mouse support
+    # ------------------------------------------------------------------ #
+
+    def _line_to_link_index(self, y_in_content: int) -> int | None:
+        """Map a y coordinate in _InfoContent (including padding) to a filtered index."""
+        line = y_in_content - 1  # subtract top padding (padding: 1 2)
+        if line < 2:
+            return None
+        current_line = 2  # _HELP line (0) + blank line (1) already counted
+        current_section: str | None = None
+        for idx, link in enumerate(self._filtered):
+            if link.section != current_section:
+                if current_section is not None:
+                    current_line += 1  # blank separator between sections
+                current_line += 1  # section header
+                current_section = link.section
+            if current_line == line:
+                return idx
+            current_line += 1
+        return None
+
+    def _copy_to_clipboard(self, text: str) -> None:
+        try:
+            self.app.copy_to_clipboard(text)
+            self.notify(f"Copied: {text}", timeout=2.0)
+            return
+        except Exception:
+            pass
+        for cmd in [
+            ["wl-copy"],
+            ["xclip", "-selection", "clipboard"],
+            ["xsel", "--clipboard", "--input"],
+            ["pbcopy"],
+        ]:
+            try:
+                subprocess.run(
+                    cmd, input=text.encode(), check=True,
+                    timeout=2.0, capture_output=True,
+                )
+                self.notify(f"Copied: {text}", timeout=2.0)
+                return
+            except Exception:
+                continue
+        self.notify("Clipboard not available", severity="warning", timeout=2.0)
+
+    def _on_content_click(self, event: Click) -> None:
+        idx = self._line_to_link_index(event.y)
+        if idx is None:
+            return
+        self._cursor = idx
+        self._render()
+        if event.button == 3:  # right-click = copy name
+            self._copy_to_clipboard(self._filtered[idx].entity.name)
+        else:  # left-click = navigate
+            self._select()
